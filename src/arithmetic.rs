@@ -2,18 +2,9 @@ use core::ops::{Add, AddAssign, Sub, SubAssign};
 
 use super::{ConstDigit, ConstUint};
 
-impl<const DIGS: usize> const Add for ConstUint<DIGS> {
-    type Output = Self;
-    #[track_caller]
-    fn add(mut self, rhs: Self) -> Self::Output {
-        self += rhs;
-        self
-    }
-}
-
-impl<const DIGS: usize> const AddAssign for ConstUint<DIGS> {
-    #[track_caller]
-    fn add_assign(&mut self, rhs: Self) {
+impl<const DIGS: usize> ConstUint<DIGS> {
+    #[must_use = "if ignoring overflow is desired, `wrapping_add_assign` should be used instead; diagsdh agsdhj gashdjg sahdg ahjsgd jhasg hjdk gasjhgd kjhasg jdkgasdioajduh"]
+    pub const fn overflowing_add_assign(&mut self, rhs: Self) -> bool {
         let mut i = 0;
         let mut carry = false;
         while i < DIGS {
@@ -29,7 +20,64 @@ impl<const DIGS: usize> const AddAssign for ConstUint<DIGS> {
             i += 1;
         }
 
-        if carry {
+        carry
+    }
+
+    pub const fn saturating_add_assign(&mut self, rhs: Self) {
+        if self.overflowing_add_assign(rhs) {
+            *self = Self::MAX;
+        }
+    }
+
+    pub const fn wrapping_add_assign(&mut self, rhs: Self) {
+        let _ = self.overflowing_add_assign(rhs);
+    }
+
+    #[must_use = "if ignoring overflow is desired, `wrapping_sub_assign` should be used instead"]
+    pub const fn overflowing_sub_assign(&mut self, rhs: Self) -> bool {
+        let mut i = 0;
+        let mut carry = false;
+        while i < DIGS {
+            // TODO u64::MIN or 0? difficult choice lol
+            if carry && self.digits[i] == ConstDigit::MIN {
+                self.digits[i] = ConstDigit::MAX - rhs.digits[i];
+                carry = true;
+            } else {
+                if carry {
+                    self.digits[i] -= 1;
+                }
+                (self.digits[i], carry) = self.digits[i].overflowing_sub(rhs.digits[i]);
+            }
+            i += 1;
+        }
+
+        carry
+    }
+
+    pub const fn saturating_sub_assign(&mut self, rhs: Self) {
+        if self.overflowing_sub_assign(rhs) {
+            *self = Self::MIN;
+        }
+    }
+
+    pub const fn wrapping_sub_assign(&mut self, rhs: Self) {
+        let _ = self.overflowing_sub_assign(rhs);
+    }
+}
+
+impl<const DIGS: usize> const Add for ConstUint<DIGS> {
+    type Output = Self;
+    #[track_caller]
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self += rhs;
+        self
+    }
+}
+
+impl<const DIGS: usize> const AddAssign for ConstUint<DIGS> {
+    #[track_caller]
+    fn add_assign(&mut self, rhs: Self) {
+        if self.overflowing_add_assign(rhs) {
             panic!("Integer overflow");
         }
     }
@@ -47,23 +95,7 @@ impl<const DIGS: usize> const Sub for ConstUint<DIGS> {
 impl<const DIGS: usize> const SubAssign for ConstUint<DIGS> {
     #[track_caller]
     fn sub_assign(&mut self, rhs: Self) {
-        let mut i = 0;
-        let mut carry = false;
-        while i < DIGS {
-            // TODO u64::MIN or 0? difficult choice lol
-            if carry && self.digits[i] == ConstDigit::MIN {
-                self.digits[i] = ConstDigit::MAX - rhs.digits[i];
-                carry = true;
-            } else {
-                if carry {
-                    self.digits[i] -= 1;
-                }
-                (self.digits[i], carry) = self.digits[i].overflowing_sub(rhs.digits[i]);
-            }
-            i += 1;
-        }
-
-        if carry {
+        if self.overflowing_sub_assign(rhs) {
             panic!("Integer overflow");
         }
     }

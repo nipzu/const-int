@@ -2,6 +2,28 @@ use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, 
 
 use super::ConstUint;
 
+impl<const DIGS: usize> ConstUint<DIGS> {
+    pub const fn count_ones(self) -> u32 {
+        let mut count = 0;
+        let mut i = 0;
+        while i < DIGS {
+            count += self.digits[i].count_ones();
+            i += 1;
+        }
+        count
+    }
+
+    pub const fn count_zeros(self) -> u32 {
+        let mut count = 0;
+        let mut i = 0;
+        while i < DIGS {
+            count += self.digits[i].count_zeros();
+            i += 1;
+        }
+        count
+    }
+}
+
 impl<const DIGS: usize> const Not for ConstUint<DIGS> {
     type Output = Self;
     fn not(mut self) -> Self::Output {

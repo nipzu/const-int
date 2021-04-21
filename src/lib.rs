@@ -1,3 +1,5 @@
+// TODO remove this
+#![allow(incomplete_features)]
 #![feature(const_panic)]
 #![feature(const_mut_refs)]
 #![feature(const_generics)]
@@ -17,7 +19,7 @@ mod conversion;
 
 // TODO should this be a struct or something?
 type ConstDigit = u64;
-type ConstDoubleDigit = u128;
+type _ConstDoubleDigit = u128;
 
 // TODO what all should be included?
 
@@ -43,11 +45,15 @@ pub type U4096 = ConstUint<64>;
 pub type U8192 = ConstUint<128>;
 
 // TODO do we really want copy?
+// TODO is Hash const?
+#[allow(clippy::derive_hash_xor_eq)]
 #[derive(Eq, Clone, Copy, Hash)]
 pub struct ConstUint<const DIGS: usize> {
     digits: [ConstDigit; DIGS],
 }
 
+// TODO clippy complains about this being implemented while Hash is derived,
+// but it seems that this has to be manually implemented to have it be const.
 impl<const DIGS: usize> const PartialEq for ConstUint<DIGS> {
     fn eq(&self, other: &Self) -> bool {
         // TODO slice comparisons are not const yet
@@ -96,8 +102,8 @@ impl<const DIGS: usize> ConstUint<DIGS> {
     }
 
     #[inline(always)]
-    pub const fn is_zero(&self) -> bool {
-        *self == Self::zero()
+    pub const fn is_zero(self) -> bool {
+        self == Self::zero()
     }
 }
 
@@ -106,7 +112,10 @@ where
     // TODO this seems hacky but rust kinda requires it so whatever
     [(); Self::MAX_DECIMAL_DIGITS]: ,
 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // TODO what about format arguments
+        // TODO can this be const, probably not
+
         // let mut num_decimal_digits = 0;
         // let mut str_buffer = [0; Self::MAX_DECIMAL_DIGITS];
         // let mut n = self.clone();
