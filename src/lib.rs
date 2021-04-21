@@ -19,7 +19,7 @@ mod conversion;
 
 // TODO should this be a struct or something?
 type ConstDigit = u64;
-type _ConstDoubleDigit = u128;
+type ConstDoubleDigit = u128;
 
 // TODO what all should be included?
 
