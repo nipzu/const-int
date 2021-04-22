@@ -1,6 +1,6 @@
-use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not};
+use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, ShlAssign, Shr, ShrAssign};
 
-use super::ConstUint;
+use super::{ConstUint, ConstDigit};
 
 impl<const DIGS: usize> ConstUint<DIGS> {
     pub const fn count_ones(self) -> u32 {
@@ -33,6 +33,15 @@ impl<const DIGS: usize> const Not for ConstUint<DIGS> {
             i += 1;
         }
         self
+    }
+}
+
+impl<const SELF_DIGS: usize, const RHS_DIGS: usize> const ShlAssign<ConstUint::<RHS_DIGS>> for ConstUint<SELF_DIGS> {
+    fn shl_assign(&mut self, _rhs: ConstUint::<RHS_DIGS>) {
+        // if rhs >= DIGS * ConstDigit::BITS {
+        //     panic!("Integer overflow");
+        // }
+        todo!()
     }
 }
 
