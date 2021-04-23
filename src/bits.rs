@@ -1,6 +1,9 @@
-use core::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, ShlAssign, Shr, ShrAssign};
+use core::ops::{
+    BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Not, Shl, ShlAssign, Shr,
+    ShrAssign,
+};
 
-use super::{ConstUint, ConstDigit};
+use super::{ConstDigit, ConstUint};
 
 impl<const DIGS: usize> ConstUint<DIGS> {
     pub const fn count_ones(self) -> u32 {
@@ -36,12 +39,99 @@ impl<const DIGS: usize> const Not for ConstUint<DIGS> {
     }
 }
 
-impl<const SELF_DIGS: usize, const RHS_DIGS: usize> const ShlAssign<ConstUint::<RHS_DIGS>> for ConstUint<SELF_DIGS> {
-    fn shl_assign(&mut self, _rhs: ConstUint::<RHS_DIGS>) {
-        // if rhs >= DIGS * ConstDigit::BITS {
-        //     panic!("Integer overflow");
-        // }
-        todo!()
+impl <const DIGS: usize> const Shl<u32> for ConstUint<DIGS> {
+    type Output = Self;
+    fn shl(mut self, rhs: u32) -> Self::Output {
+        self <<= rhs;
+        self
+    }
+}
+
+impl<const DIGS: usize> const ShlAssign<u32> for ConstUint<DIGS> {
+    #[track_caller]
+    fn shl_assign(&mut self, rhs: u32) {
+        if rhs >= Self::BITS {
+            panic!("Integer overflow");
+        }
+
+        let digits_to_shift = (rhs / ConstDigit::BITS) as usize;
+        let bits_to_shift = rhs % ConstDigit::BITS;
+
+        let mut i = DIGS;
+        if digits_to_shift != 0 {   
+            while i > digits_to_shift {
+                self.digits[i - 1] = self.digits[i - 1 - digits_to_shift];
+                i -= 1;
+            }
+            while i > 0 {
+                self.digits[i - 1] = 0;
+                i -= 1;
+            }
+        }
+
+        if bits_to_shift == 0 {
+            return;
+        }
+
+        let overflowing_bits_mask = (!0) << (ConstDigit::BITS - bits_to_shift);
+        let mut overflowing_bits = 0;
+        i = digits_to_shift;
+        while i < DIGS {
+            let new_overflowing_bits = 
+                (self.digits[i] & overflowing_bits_mask) >> (ConstDigit::BITS - bits_to_shift);
+            self.digits[i] <<= bits_to_shift;
+            self.digits[i] |= overflowing_bits;
+            overflowing_bits = new_overflowing_bits;
+            i += 1;
+        }
+    }
+}
+
+impl<const DIGS: usize> const ShrAssign<u32> for ConstUint<DIGS> {
+    #[track_caller]
+    fn shr_assign(&mut self, rhs: u32) {
+        if rhs >= Self::BITS {
+            panic!("Integer overflow");
+        }
+
+        let digits_to_shift = (rhs / ConstDigit::BITS) as usize;
+        let bits_to_shift = rhs % ConstDigit::BITS;
+
+        let mut i = 0;
+        if digits_to_shift != 0 {   
+            while i < DIGS - digits_to_shift {
+                self.digits[i] = self.digits[i + digits_to_shift];
+                i += 1;
+            }
+            while i < DIGS {
+                self.digits[i] = 0;
+                i += 1;
+            }
+        }
+
+        if bits_to_shift == 0 {
+            return;
+        }
+
+        let overflowing_bits_mask = (!0) >> (ConstDigit::BITS - bits_to_shift);
+        let mut overflowing_bits = 0;
+        i = DIGS - digits_to_shift;
+        while i > 0 {
+            let new_overflowing_bits = 
+                (self.digits[i - 1] & overflowing_bits_mask) << (ConstDigit::BITS - bits_to_shift);
+            self.digits[i - 1] >>= bits_to_shift;
+            self.digits[i - 1] |= overflowing_bits;
+            overflowing_bits = new_overflowing_bits;
+            i -= 1;
+        }
+    }
+}
+
+impl<const DIGS: usize> const Shr<u32> for ConstUint<DIGS> {
+    type Output = Self;
+    fn shr(mut self, rhs: u32) -> Self::Output {
+        self >>= rhs;
+        self
     }
 }
 
@@ -107,5 +197,39 @@ mod tests {
         const C: ConstUint<2> = A ^ B;
 
         assert_eq!(C, ConstUint::from_digits([0b10100101, 0b01010101]));
+    }
+
+    #[test]
+    fn test_shl_assign() {
+        const A: ConstUint<2> = ConstUint::from_digits([12157665459056928801, 298023223876953125]);
+        for k in 0..128 {
+            let mut b = A;
+            b <<= k;
+            assert_eq!(
+                b,
+                A.overflowing_mul(ConstUint::from_digits([
+                    2u128.pow(k) as u64,
+                    (2u128.pow(k) / 2u128.pow(64)) as u64
+                ]))
+                .0
+            );
+        }
+    }
+
+    #[test]
+    fn test_shr_assign() {
+        const A: ConstUint<2> = ConstUint::from_digits([12157665459056928801, 298023223876953125]);
+        for k in 0..128 {
+            let mut b = A;
+            b >>= k;
+            let c = 5497558138880000012157665459056928801u128 / 2u128.pow(k);
+            assert_eq!(
+                b,
+                ConstUint::from_digits([
+                    c as u64,
+                    (c / 2u128.pow(64)) as u64
+                ])
+            );
+        }
     }
 }
