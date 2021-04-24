@@ -11,8 +11,6 @@
 #[cfg(not(any(target_pointer_width = "64", target_pointer_width = "32")))]
 compile_error!("Only targets with pointers of width 32 or 64 are currently supported.");
 
-use core::fmt;
-
 mod arithmetic;
 mod bits;
 mod conversion;
@@ -80,16 +78,12 @@ impl<const DIGS: usize> ConstUint<DIGS> {
     } else {
         DIGS as u32 * ConstDigit::BITS
     };
-    // TODO don't use too much of the stack
-    const MAX_DECIMAL_DIGITS: usize = DIGS * ConstDigit::BITS as usize / 3;
 
-    #[inline(always)]
     const fn from_digits(digits: [ConstDigit; DIGS]) -> Self {
         Self { digits }
     }
 
     /// Constructs a new `ConstUint` with value 0.
-    #[inline(always)]
     pub const fn zero() -> Self {
         Self::from_digits([0; DIGS])
     }
@@ -98,7 +92,6 @@ impl<const DIGS: usize> ConstUint<DIGS> {
     /// # Panics
     /// This function will panic if and only if the number of digits is 0, that is `DIGS == 0`.
     #[track_caller]
-    #[inline(always)]
     pub const fn one() -> Self {
         if DIGS == 0 {
             panic!("Integer overflow");
@@ -108,62 +101,22 @@ impl<const DIGS: usize> ConstUint<DIGS> {
         Self::from_digits(digits)
     }
 
-    #[inline(always)]
     pub const fn is_zero(self) -> bool {
         self == Self::zero()
     }
-}
 
-impl<const DIGS: usize> fmt::Display for ConstUint<DIGS>
-where
-    // TODO this seems hacky but rust kinda requires it so whatever
-    [(); Self::MAX_DECIMAL_DIGITS]: ,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if DIGS == 0 || self.is_zero() {
-            return f.pad_integral(true, "", "0");
+    pub const fn is_even(self) -> bool {
+        if DIGS == 0 {
+            return true;
         }
-
-        // TODO what about format arguments
-        // TODO can this be const, probably not
-
-        let mut num_decimal_digits = 0;
-        let mut str_buffer = [b'0'; Self::MAX_DECIMAL_DIGITS];
-        let mut inverse_of_five = ConstUint::from_digits([0xCCCCCCCCCCCCCCCCu64; DIGS]);
-        inverse_of_five.digits[0] += 1;
-        let mut n = *self;
-        while !n.is_zero() {
-            let rem_by_2 = (n.digits[0] % 2) as usize;
-            let mut rem_by_5 = 0;
-            let mut i = 0;
-            while i < DIGS {
-                // if this overflows then you're probably doing something very wrong
-                rem_by_5 += (n.digits[i] % 5) as usize;
-                i += 1;
-            }
-            rem_by_5 %= 5;
-            str_buffer[num_decimal_digits] = b'0' + ((6*rem_by_5 + 5*rem_by_2) % 10) as u8;
-            n.digits[0] -= ((6*rem_by_5 + 5*rem_by_2) % 10) as ConstDigit;
-            n >>= 1;
-            n.wrapping_mul_assign(inverse_of_five);
-            num_decimal_digits += 1;
-        }
-
-        str_buffer[..num_decimal_digits].reverse();
-
-        // SAFETY: str_buffer only includes values in the range b'0'..=b'9' and is thus safe to convert to utf-8
-        let fmt_str = unsafe { core::str::from_utf8_unchecked(&str_buffer[..num_decimal_digits]) };
-
-        f.pad_integral(true, "", fmt_str)
+        self.digits[0] % 2 == 0
     }
-}
 
-impl<const DIGS: usize> fmt::Debug for ConstUint<DIGS>
-where
-    [(); Self::MAX_DECIMAL_DIGITS]: ,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
+    pub const fn is_odd(self) -> bool {
+        if DIGS == 0 {
+            return false;
+        }
+        self.digits[0] % 2 == 1
     }
 }
 
@@ -236,11 +189,16 @@ mod tests {
     }
 
     #[test]
-    fn test_display() {
-        const A: ConstUint<2> = ConstUint::from_digits([12157665459056928801, 298023223876953125]);
-
-        extern crate std;
-
-        assert_eq!(std::format!("{}", A), "5497558138880000012157665459056928801");
+    fn test_bits() {
+        assert_eq!(U192::BITS, 192);
+        assert_eq!(U256::BITS, 256);
+        assert_eq!(U320::BITS, 320);
+        assert_eq!(U384::BITS, 384);
+        assert_eq!(U448::BITS, 448);
+        assert_eq!(U512::BITS, 512);
+        assert_eq!(U1024::BITS, 1024);
+        assert_eq!(U2048::BITS, 2048);
+        assert_eq!(U4096::BITS, 4096);
+        assert_eq!(U8192::BITS, 8192);
     }
 }

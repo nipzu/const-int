@@ -39,7 +39,7 @@ impl<const DIGS: usize> const Not for ConstUint<DIGS> {
     }
 }
 
-impl <const DIGS: usize> const Shl<u32> for ConstUint<DIGS> {
+impl<const DIGS: usize> const Shl<u32> for ConstUint<DIGS> {
     type Output = Self;
     fn shl(mut self, rhs: u32) -> Self::Output {
         self <<= rhs;
@@ -58,7 +58,7 @@ impl<const DIGS: usize> const ShlAssign<u32> for ConstUint<DIGS> {
         let bits_to_shift = rhs % ConstDigit::BITS;
 
         let mut i = DIGS;
-        if digits_to_shift != 0 {   
+        if digits_to_shift != 0 {
             while i > digits_to_shift {
                 self.digits[i - 1] = self.digits[i - 1 - digits_to_shift];
                 i -= 1;
@@ -77,7 +77,7 @@ impl<const DIGS: usize> const ShlAssign<u32> for ConstUint<DIGS> {
         let mut overflowing_bits = 0;
         i = digits_to_shift;
         while i < DIGS {
-            let new_overflowing_bits = 
+            let new_overflowing_bits =
                 (self.digits[i] & overflowing_bits_mask) >> (ConstDigit::BITS - bits_to_shift);
             self.digits[i] <<= bits_to_shift;
             self.digits[i] |= overflowing_bits;
@@ -98,7 +98,7 @@ impl<const DIGS: usize> const ShrAssign<u32> for ConstUint<DIGS> {
         let bits_to_shift = rhs % ConstDigit::BITS;
 
         let mut i = 0;
-        if digits_to_shift != 0 {   
+        if digits_to_shift != 0 {
             while i < DIGS - digits_to_shift {
                 self.digits[i] = self.digits[i + digits_to_shift];
                 i += 1;
@@ -117,7 +117,7 @@ impl<const DIGS: usize> const ShrAssign<u32> for ConstUint<DIGS> {
         let mut overflowing_bits = 0;
         i = DIGS - digits_to_shift;
         while i > 0 {
-            let new_overflowing_bits = 
+            let new_overflowing_bits =
                 (self.digits[i - 1] & overflowing_bits_mask) << (ConstDigit::BITS - bits_to_shift);
             self.digits[i - 1] >>= bits_to_shift;
             self.digits[i - 1] |= overflowing_bits;
@@ -225,10 +225,7 @@ mod tests {
             let c = 5497558138880000012157665459056928801u128 / 2u128.pow(k);
             assert_eq!(
                 b,
-                ConstUint::from_digits([
-                    c as u64,
-                    (c / 2u128.pow(64)) as u64
-                ])
+                ConstUint::from_digits([c as u64, (c / 2u128.pow(64)) as u64])
             );
         }
     }
