@@ -28,6 +28,106 @@ impl<const DIGS: usize> ConstUint<DIGS> {
     } else {
         panic!("Internal error: digits should be 64 bits");
     };
+
+    // TODO naming on this
+    // maybe use truncating_cast_into
+    pub const fn cast_into<const DEST_DIGS: usize>(self) -> ConstUint<DEST_DIGS>
+    where
+        [(); DEST_DIGS - DIGS]: ,
+    {
+        self.truncating_cast_into()
+    }
+
+    pub const fn cast_from<const SOURCE_DIGS: usize>(value: ConstUint<SOURCE_DIGS>) -> Self
+    where
+        [(); DIGS - SOURCE_DIGS]: ,
+    {
+        Self::truncating_cast_from(value)
+    }
+
+    pub const fn truncating_cast_into<const DEST_DIGS: usize>(self) -> ConstUint<DEST_DIGS> {
+        let mut result = ConstUint::<DEST_DIGS>::zero();
+        // TODO holy hell This is hacky
+        let mut i = 0;
+        let smaller_digs = if DIGS > DEST_DIGS {
+            DEST_DIGS
+        } else {
+            DIGS
+        };
+
+        while i < smaller_digs {
+            result.digits[i] = self.digits[i];
+            i += 1;
+        }
+        result
+    }
+
+    pub const fn truncating_cast_from<const SOURCE_DIGS: usize>(
+        value: ConstUint<SOURCE_DIGS>,
+    ) -> Self {
+        let mut result = Self::zero();
+        // TODO holy hell This is hacky
+        let mut i = 0;
+        let smaller_digs = if DIGS > SOURCE_DIGS {
+            SOURCE_DIGS
+        } else {
+            DIGS
+        };
+
+        while i < smaller_digs {
+            result.digits[i] = value.digits[i];
+            i += 1;
+        }
+        result
+    }
+
+    pub fn try_cast_into<const DEST_DIGS: usize>(self) -> Option<ConstUint<DEST_DIGS>> {
+        let mut result = ConstUint::<DEST_DIGS>::zero();
+        let mut i = 0;
+        while i < DIGS {
+            if self.digits[i] != 0 {
+                if i < DEST_DIGS {
+                    result.digits[i] = self.digits[i];
+                } else {
+                    return None;
+                }
+            }
+            i += 1;
+        }
+        Some(result)
+    }
+
+    pub fn try_cast_from<const SOURCE_DIGS: usize>(value: ConstUint<SOURCE_DIGS>) -> Option<Self> {
+        let mut result = Self::zero();
+        let mut i = 0;
+        while i < SOURCE_DIGS {
+            if value.digits[i] != 0 {
+                if i < DIGS {
+                    result.digits[i] = value.digits[i];
+                } else {
+                    return None;
+                }
+            }
+            i += 1;
+        }
+        Some(result)
+    }
+
+    pub fn saturating_cast_into<const DEST_DIGS: usize>(self) -> ConstUint<DEST_DIGS> {
+        if let Some(result) = self.try_cast_into() {
+            result
+        } else {
+            ConstUint::<DEST_DIGS>::MAX
+        }
+    }
+
+    pub fn saturating_cast_from<const SOURCE_DIGS: usize>(value: ConstUint<SOURCE_DIGS>) -> Self {
+        if let Some(result) = Self::try_cast_from(value) {
+            result
+        } else {
+            Self::MAX
+        }
+    }
 }
 
 impl<const DIGS: usize> fmt::Display for ConstUint<DIGS>
@@ -203,6 +303,48 @@ where
     }
 }
 
+macro_rules! impl_from_uint {
+    ($t:ty) => {
+        impl<const DIGS: usize> const From<$t> for ConstUint<DIGS>
+        where
+            [(); DIGS - 1]: ,
+        {
+            fn from(value: $t) -> Self {
+                let mut result = Self::zero();
+                // TODO make sure $t is not bigger than ConstDigit
+                result.digits[0] = value as ConstDigit;
+                result
+            }
+        }
+    };
+}
+
+impl_from_uint!(u8);
+impl_from_uint!(u16);
+impl_from_uint!(u32);
+impl_from_uint!(u64);
+
+impl<const DIGS: usize> const From<u128> for ConstUint<DIGS>
+where
+    [(); DIGS - 2]: ,
+{
+    fn from(value: u128) -> Self {
+        let mut result = Self::zero();
+        // TODO make sure ConstDigit is 64 bits
+        result.digits[0] = value as ConstDigit;
+        result.digits[1] = (value >> ConstDigit::BITS) as ConstDigit;
+        result
+    }
+}
+
+// impl<const DIGS: usize, const VALUE_DIGS: usize> const From<ConstUint<VALUE_DIGS>> for ConstUint<DIGS> where [(); DIGS - VALUE_DIGS]: {
+//     fn from(value: ConstUint<VALUE_DIGS>) -> Self {
+//         let mut result = Self::zero();
+//         result.digits[0..VALUE_DIGS] = value.digits;
+//         result
+//     }
+// }
+
 #[cfg(test)]
 mod tests {
     extern crate std;
@@ -300,5 +442,23 @@ mod tests {
         assert_eq!(std::format!("{:b}", ConstUint::<2>::zero()), "0");
 
         assert_eq!(std::format!("{:#b}", ConstUint::<2>::zero()), "0b0");
+    }
+
+    #[test]
+    fn test_from_uint() {
+        const A: ConstUint<2> = ConstUint::from(123u8);
+        assert_eq!(A, ConstUint::from_digits([123, 0]));
+
+        const B: ConstUint<2> = ConstUint::from(123u16);
+        assert_eq!(B, ConstUint::from_digits([123, 0]));
+
+        const C: ConstUint<2> = ConstUint::from(123u32);
+        assert_eq!(C, ConstUint::from_digits([123, 0]));
+
+        const D: ConstUint<2> = ConstUint::from(123u64);
+        assert_eq!(D, ConstUint::from_digits([123, 0]));
+
+        const E: ConstUint<2> = ConstUint::from(123u64);
+        assert_eq!(E, ConstUint::from_digits([123, 0]));
     }
 }

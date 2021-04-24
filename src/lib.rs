@@ -15,6 +15,10 @@ mod arithmetic;
 mod bits;
 mod conversion;
 
+pub const fn foo(a: U256, b: U256) -> U256 {
+    a + b
+}
+
 // TODO clippy::pedantic
 // also when to use inline(always)
 
