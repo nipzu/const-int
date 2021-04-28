@@ -1,4 +1,5 @@
 use core::fmt;
+use core::str::FromStr;
 
 use super::{ConstDigit, ConstUint};
 
@@ -30,7 +31,6 @@ impl<const DIGS: usize> ConstUint<DIGS> {
     };
 
     // TODO naming on this
-    // maybe use truncating_cast_into
     pub const fn cast_into<const DEST_DIGS: usize>(self) -> ConstUint<DEST_DIGS>
     where
         [(); DEST_DIGS - DIGS]: ,
@@ -47,13 +47,8 @@ impl<const DIGS: usize> ConstUint<DIGS> {
 
     pub const fn truncating_cast_into<const DEST_DIGS: usize>(self) -> ConstUint<DEST_DIGS> {
         let mut result = ConstUint::<DEST_DIGS>::zero();
-        // TODO holy hell This is hacky
         let mut i = 0;
-        let smaller_digs = if DIGS > DEST_DIGS {
-            DEST_DIGS
-        } else {
-            DIGS
-        };
+        let smaller_digs = if DIGS > DEST_DIGS { DEST_DIGS } else { DIGS };
 
         while i < smaller_digs {
             result.digits[i] = self.digits[i];
@@ -66,7 +61,6 @@ impl<const DIGS: usize> ConstUint<DIGS> {
         value: ConstUint<SOURCE_DIGS>,
     ) -> Self {
         let mut result = Self::zero();
-        // TODO holy hell This is hacky
         let mut i = 0;
         let smaller_digs = if DIGS > SOURCE_DIGS {
             SOURCE_DIGS
@@ -81,7 +75,7 @@ impl<const DIGS: usize> ConstUint<DIGS> {
         result
     }
 
-    pub fn try_cast_into<const DEST_DIGS: usize>(self) -> Option<ConstUint<DEST_DIGS>> {
+    pub const fn try_cast_into<const DEST_DIGS: usize>(self) -> Option<ConstUint<DEST_DIGS>> {
         let mut result = ConstUint::<DEST_DIGS>::zero();
         let mut i = 0;
         while i < DIGS {
@@ -97,7 +91,9 @@ impl<const DIGS: usize> ConstUint<DIGS> {
         Some(result)
     }
 
-    pub fn try_cast_from<const SOURCE_DIGS: usize>(value: ConstUint<SOURCE_DIGS>) -> Option<Self> {
+    pub const fn try_cast_from<const SOURCE_DIGS: usize>(
+        value: ConstUint<SOURCE_DIGS>,
+    ) -> Option<Self> {
         let mut result = Self::zero();
         let mut i = 0;
         while i < SOURCE_DIGS {
@@ -113,7 +109,7 @@ impl<const DIGS: usize> ConstUint<DIGS> {
         Some(result)
     }
 
-    pub fn saturating_cast_into<const DEST_DIGS: usize>(self) -> ConstUint<DEST_DIGS> {
+    pub const fn saturating_cast_into<const DEST_DIGS: usize>(self) -> ConstUint<DEST_DIGS> {
         if let Some(result) = self.try_cast_into() {
             result
         } else {
@@ -121,12 +117,65 @@ impl<const DIGS: usize> ConstUint<DIGS> {
         }
     }
 
-    pub fn saturating_cast_from<const SOURCE_DIGS: usize>(value: ConstUint<SOURCE_DIGS>) -> Self {
+    pub const fn saturating_cast_from<const SOURCE_DIGS: usize>(
+        value: ConstUint<SOURCE_DIGS>,
+    ) -> Self {
         if let Some(result) = Self::try_cast_from(value) {
             result
         } else {
             Self::MAX
         }
+    }
+
+    pub const fn from_str_radix(s: &str, radix: u32) -> Result<Self, ()>
+    where
+        [(); DIGS - 1]: ,
+    {
+        if radix < 2 || radix > 36 {
+            return Err(());
+        }
+
+        // TODO this works better in const contexts
+        let source = s.as_bytes();
+        let mut i = 0;
+
+        if source.len() > 0 && source[0] == b'+' {
+            i += 1;
+        }
+
+        if i == source.len() {
+            return Err(());
+        }
+
+        let mut result = Self::zero();
+        while i < source.len() {
+            let dig = match source[i] {
+                b'0'..=b'9' => source[i] - b'0',
+                b'a'..=b'z' => source[i] - b'a' + 10,
+                b'A'..=b'Z' => source[i] - b'A' + 10,
+                _ => return Err(()),
+            };
+            if dig as u32 >= radix {
+                return Err(());
+            }
+            result *= Self::from(radix);
+            result += Self::from(dig);
+            i += 1;
+        }
+
+        Ok(result)
+    }
+}
+
+impl<const DIGS: usize> const FromStr for ConstUint<DIGS>
+where
+    [(); DIGS - 1]: ,
+{
+    // TODO errors
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_str_radix(s, 10)
     }
 }
 
@@ -460,5 +509,29 @@ mod tests {
 
         const E: ConstUint<2> = ConstUint::from(123u64);
         assert_eq!(E, ConstUint::from_digits([123, 0]));
+    }
+
+    #[test]
+    fn test_parse() {
+        let a: ConstUint<2> = "5497558138880000012157665459056928801".parse().unwrap();
+        assert_eq!(
+            a,
+            ConstUint::from_digits([12157665459056928801, 298023223876953125])
+        );
+    }
+
+    #[test]
+    fn test_from_str_radix() {
+        let a: ConstUint<2> = ConstUint::from_str_radix("100001000101100101010001011000010100000000010100100001001011010100010111000101101000101001000101001000111111110100000100001", 2).unwrap();
+        assert_eq!(
+            a,
+            ConstUint::from_digits([12157665459056928801, 298023223876953125])
+        );
+        let b: ConstUint<2> =
+            ConstUint::from_str_radix("+422cA8b0a00a425a8B8b452291FE821", 16).unwrap();
+        assert_eq!(
+            b,
+            ConstUint::from_digits([12157665459056928801, 298023223876953125])
+        );
     }
 }

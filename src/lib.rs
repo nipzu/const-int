@@ -6,18 +6,15 @@
 #![feature(const_evaluatable_checked)]
 #![feature(const_trait_impl)]
 #![feature(destructuring_assignment)]
+#![feature(result_flattening)]
 #![no_std]
 
 #[cfg(not(any(target_pointer_width = "64", target_pointer_width = "32")))]
-compile_error!("Only targets with pointers of width 32 or 64 are currently supported.");
+compile_error!("Only targets with pointers of 32 or 64 bits are currently supported.");
 
 mod arithmetic;
 mod bits;
 mod conversion;
-
-pub const fn foo(a: U256, b: U256) -> U256 {
-    a + b
-}
 
 // TODO clippy::pedantic
 // also when to use inline(always)
