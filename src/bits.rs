@@ -25,6 +25,47 @@ impl<const DIGS: usize> ConstUint<DIGS> {
         }
         count
     }
+
+    pub const fn rotate_left(self, n: u32) -> Self {
+        let mut result = Self::zero();
+
+        let digits_to_rotate = (n as usize / ConstDigit::BITS as usize) % DIGS;
+        let bits_to_rotate = n % ConstDigit::BITS;
+
+        let mut i = 0;
+        while i < DIGS {
+            result.digits[i] =
+                self.digits[(i + DIGS - digits_to_rotate) % DIGS as usize] << bits_to_rotate;
+            if bits_to_rotate != 0 {
+                result.digits[i] |= self.digits
+                    [(i + 2 * DIGS - digits_to_rotate - 1) % DIGS as usize]
+                    >> (ConstDigit::BITS - bits_to_rotate);
+            }
+            i += 1;
+        }
+
+        result
+    }
+
+    pub const fn rotate_right(self, n: u32) -> Self {
+        let mut result = Self::zero();
+
+        let digits_to_rotate = (n as usize / ConstDigit::BITS as usize) % DIGS;
+        let bits_to_rotate = n % ConstDigit::BITS;
+
+        let mut i = 0;
+        while i < DIGS {
+            result.digits[i] =
+                self.digits[(i + digits_to_rotate) % DIGS as usize] >> bits_to_rotate;
+            if bits_to_rotate != 0 {
+                result.digits[i] |= self.digits[(i + digits_to_rotate + 1) % DIGS as usize]
+                    << (ConstDigit::BITS - bits_to_rotate);
+            }
+            i += 1;
+        }
+
+        result
+    }
 }
 
 impl<const DIGS: usize> const Not for ConstUint<DIGS> {
@@ -227,6 +268,44 @@ mod tests {
                 b,
                 ConstUint::from_digits([c as u64, (c / 2u128.pow(64)) as u64])
             );
+        }
+    }
+
+    #[test]
+    fn test_rotate_right() {
+        let a = ConstUint::from_digits([0b00110110, 0b11010001]);
+        assert_eq!(
+            a.rotate_right(67),
+            ConstUint::from_digits([(1 << 63) | (1 << 62) | 0b11010, (1 << 61) | 0b0110])
+        );
+
+        let rots = [64, 324, 452, 23423, 4433, 23, 0, 1];
+        let n = 0x422ca8b0a00a425a8b8b452291fe821u128;
+
+        for r in &rots {
+            assert_eq!(
+                ConstUint::<2>::from(n.rotate_right(*r)),
+                ConstUint::<2>::from(n).rotate_right(*r)
+            )
+        }
+    }
+
+    #[test]
+    fn test_rotate_left() {
+        let a = ConstUint::from_digits([(1 << 63) | (1 << 62) | 0b11010, (1 << 61) | 0b0110]);
+        assert_eq!(
+            a.rotate_left(67),
+            ConstUint::from_digits([0b00110110, 0b11010001])
+        );
+
+        let rots = [64, 324, 452, 23423, 4433, 23, 0, 1];
+        let n = 0x422ca8b0a00a425a8b8b452291fe821u128;
+
+        for r in &rots {
+            assert_eq!(
+                ConstUint::<2>::from(n.rotate_left(*r)),
+                ConstUint::<2>::from(n).rotate_left(*r)
+            )
         }
     }
 }

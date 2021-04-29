@@ -139,11 +139,12 @@ impl<const DIGS: usize> ConstUint<DIGS> {
         let source = s.as_bytes();
         let mut i = 0;
 
+        // TODO can't do source.first() == Some(&b'+') because of const stuff
         if source.len() > 0 && source[0] == b'+' {
             i += 1;
         }
 
-        if i == source.len() {
+        if i >= source.len() {
             return Err(());
         }
 
