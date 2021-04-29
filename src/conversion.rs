@@ -166,6 +166,66 @@ impl<const DIGS: usize> ConstUint<DIGS> {
 
         Ok(result)
     }
+
+    pub const fn leading_ones(self) -> u32 {
+        let mut result = 0;
+
+        let mut i = DIGS;
+        while i > 0 {
+            result += self.digits[i - 1].leading_ones();
+            if self.digits[i - 1].leading_ones() != ConstDigit::BITS {
+                break;
+            }
+            i -= 1;
+        }
+
+        result
+    }
+
+    pub const fn leading_zeros(self) -> u32 {
+        let mut result = 0;
+
+        let mut i = DIGS;
+        while i > 0 {
+            result += self.digits[i - 1].leading_zeros();
+            if self.digits[i - 1].leading_zeros() != ConstDigit::BITS {
+                break;
+            }
+            i -= 1;
+        }
+
+        result
+    }
+
+    pub const fn trailing_ones(self) -> u32 {
+        let mut result = 0;
+
+        let mut i = 0;
+        while i < DIGS {
+            result += self.digits[i].trailing_ones();
+            if self.digits[i].trailing_ones() != ConstDigit::BITS {
+                break;
+            }
+            i += 1;
+        }
+
+        result
+    }
+
+    pub const fn trailing_zeros(self) -> u32 {
+        let mut result = 0;
+
+        let mut i = 0;
+        while i < DIGS {
+            result += self.digits[i].trailing_zeros();
+            if self.digits[i].trailing_zeros() != ConstDigit::BITS {
+                break;
+            }
+            i += 1;
+        }
+
+        result
+    }
 }
 
 impl<const DIGS: usize> const FromStr for ConstUint<DIGS>
@@ -534,5 +594,41 @@ mod tests {
             b,
             ConstUint::from_digits([12157665459056928801, 298023223876953125])
         );
+    }
+
+    #[test]
+    fn test_trailing_ones() {
+        let a: ConstUint<3> = ConstUint::MAX;
+        for k in 0..192 {
+            assert_eq!((a >> k).trailing_ones(), 192 - k);
+        }
+        assert_eq!(ConstUint::<3>::MAX.trailing_ones(), 192);
+    }
+
+    #[test]
+    fn test_trailing_zeros() {
+        let a: ConstUint<3> = ConstUint::MAX;
+        for k in 0..192 {
+            assert_eq!((a << k).trailing_zeros(), k);
+        }
+        assert_eq!(ConstUint::<3>::zero().trailing_zeros(), 192);
+    }
+
+    #[test]
+    fn test_leading_ones() {
+        let a: ConstUint<3> = ConstUint::MAX;
+        for k in 0..192 {
+            assert_eq!((a << k).leading_ones(), 192 - k);
+        }
+        assert_eq!(ConstUint::<3>::MAX.leading_ones(), 192);
+    }
+
+    #[test]
+    fn test_leading_zeros() {
+        let a: ConstUint<3> = ConstUint::MAX;
+        for k in 0..192 {
+            assert_eq!((a >> k).leading_zeros(), k);
+        }
+        assert_eq!(ConstUint::<3>::zero().leading_zeros(), 192);
     }
 }
