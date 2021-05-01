@@ -447,14 +447,6 @@ where
     }
 }
 
-// impl<const DIGS: usize, const VALUE_DIGS: usize> const From<ConstUint<VALUE_DIGS>> for ConstUint<DIGS> where [(); DIGS - VALUE_DIGS]: {
-//     fn from(value: ConstUint<VALUE_DIGS>) -> Self {
-//         let mut result = Self::zero();
-//         result.digits[0..VALUE_DIGS] = value.digits;
-//         result
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     extern crate std;
@@ -470,6 +462,7 @@ mod tests {
         );
 
         assert_eq!(std::format!("{}", ConstUint::<2>::zero()), "0");
+        assert_eq!(std::format!("{}", ConstUint::<3>::MAX), "6277101735386680763835789423207666416102355444464034512895");
     }
 
     #[test]

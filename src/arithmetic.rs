@@ -1,4 +1,6 @@
 use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
+use core::iter::{Sum, Product};
+use core::cmp::Ordering;
 
 use super::{ConstDigit, ConstDoubleDigit, ConstUint};
 
@@ -156,7 +158,6 @@ impl<const DIGS: usize> ConstUint<DIGS> {
                         result.digits[i + j + k].overflowing_add(1);
                     k += 1;
                 }
-
                 j += 1;
             }
             i += 1;
@@ -191,7 +192,7 @@ impl<const DIGS: usize> ConstUint<DIGS> {
         let mut i = 0;
         'i_loop: while i < self_len {
             let mut j = 0;
-            while j < rhs_len {
+            'j_loop: while j < rhs_len {
                 let multiplied =
                     self.digits[i] as ConstDoubleDigit * rhs.digits[j] as ConstDoubleDigit;
                 let (mut high, low) = (
@@ -213,8 +214,8 @@ impl<const DIGS: usize> ConstUint<DIGS> {
                 if high != 0 {
                     if i + j + 1 == DIGS {
                         did_overflow = true;
-                        i += 1;
-                        continue 'i_loop;
+                        j += 1;
+                        continue 'j_loop;
                     }
                     (result.digits[i + j + 1], add_carry) =
                         result.digits[i + j + 1].overflowing_add(high);
@@ -223,14 +224,13 @@ impl<const DIGS: usize> ConstUint<DIGS> {
                 while add_carry {
                     if i + j + k == DIGS {
                         did_overflow = true;
-                        i += 1;
-                        continue 'i_loop;
+                        j += 1;
+                        continue 'j_loop;
                     }
                     (result.digits[i + j + k], add_carry) =
                         result.digits[i + j + k].overflowing_add(1);
                     k += 1;
                 }
-
                 j += 1;
             }
             i += 1;
@@ -334,6 +334,41 @@ impl<const DIGS: usize> const MulAssign for ConstUint<DIGS> {
     }
 }
 
+impl<const DIGS: usize> Sum for ConstUint<DIGS> {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::zero(), Self::add)
+    }
+}
+
+impl<const DIGS: usize> Product for ConstUint<DIGS> {
+    fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::one(), Self::mul)
+    }
+}
+
+impl<const DIGS: usize> const PartialOrd for ConstUint<DIGS> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<const DIGS: usize> const Ord for ConstUint<DIGS> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let mut i = DIGS;
+        while i > 0 {
+            // TODO cmp on u64 is not const :(
+            if self.digits[i - 1] > other.digits[i - 1] {
+                return Ordering::Greater;
+            }
+            if self.digits[i - 1] < other.digits[i - 1] {
+                return Ordering::Less;
+            }
+            i -= 1;
+        }
+        Ordering::Equal
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -388,5 +423,32 @@ mod tests {
             A * B,
             ConstUint::from_digits([8182083744359279411, 847292989822])
         );
+    }
+
+    #[test]
+    fn test_wrapping_mul() {
+        let a = ConstUint::<3>::from_digits([18446744073709551613, 18446744073709551615, 9223372036854775807]);
+        let b = ConstUint::<3>::from_str_radix("cccccccccccccccccccccccccccccccccccccccccccccccd", 16).unwrap();
+        let c = "627710173538668076383578942320766641610235544446403451289".parse::<ConstUint<3>>().unwrap();
+        assert_eq!(a.wrapping_mul(b), c);
+    }
+
+    #[test]
+    fn test_sum() {
+        assert_eq!((1u32..=100).map(|x| ConstUint::<3>::from(x)).sum::<ConstUint<3>>(), ConstUint::<3>::from(5050u32))
+    }
+
+    #[test]
+    fn test_product() {
+        let factorial = (1u32..=40).map(|x| ConstUint::<3>::from(x)).product::<ConstUint<3>>();
+        assert_eq!(Ok(factorial), "815915283247897734345611269596115894272000000000".parse());
+    }
+
+    #[test]
+    fn test_cmp() {
+        assert!(ConstUint::<3>::from_digits([1209, 71628126, 2365]) > ConstUint::<3>::from_digits([1209, 7126, 2365]));
+        assert!(ConstUint::<3>::from_digits([0, 1, 0]) < ConstUint::<3>::from_digits([1, 0, 1]));
+        assert!(ConstUint::<3>::from_digits([1, 2, 3]) >= ConstUint::<3>::from_digits([1, 2, 3]));
+        assert!(ConstUint::<3>::from_digits([100, 200, 0]) < ConstUint::<3>::from_digits([1, 2, 3]));
     }
 }
