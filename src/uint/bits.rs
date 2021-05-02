@@ -66,6 +66,10 @@ impl<const DIGS: usize> ConstUint<DIGS> {
 
         result
     }
+
+    pub const fn is_power_of_two(self) -> bool {
+        self.leading_zeros() + self.trailing_zeros() == Self::BITS - 1
+    }
 }
 
 impl<const DIGS: usize> const Not for ConstUint<DIGS> {

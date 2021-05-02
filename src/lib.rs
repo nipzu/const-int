@@ -6,7 +6,6 @@
 #![feature(const_evaluatable_checked)]
 #![feature(const_trait_impl)]
 #![feature(destructuring_assignment)]
-#![feature(result_flattening)]
 #![no_std]
 
 #[cfg(not(any(target_pointer_width = "64", target_pointer_width = "32")))]

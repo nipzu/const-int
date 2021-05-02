@@ -127,6 +127,7 @@ impl<const DIGS: usize> ConstUint<DIGS> {
         }
     }
 
+    // TODO use core::num::ParseIntError;
     pub const fn from_str_radix(s: &str, radix: u32) -> Result<Self, ()>
     where
         [(); DIGS - 1]: ,
@@ -135,12 +136,11 @@ impl<const DIGS: usize> ConstUint<DIGS> {
             return Err(());
         }
 
-        // TODO this works better in const contexts
         let source = s.as_bytes();
         let mut i = 0;
 
         // TODO can't do source.first() == Some(&b'+') because of const stuff
-        if source.len() > 0 && source[0] == b'+' {
+        if !source.is_empty() && source[0] == b'+' {
             i += 1;
         }
 
@@ -159,6 +159,8 @@ impl<const DIGS: usize> ConstUint<DIGS> {
             if dig as u32 >= radix {
                 return Err(());
             }
+
+            // TODO use digit methods
             result *= Self::from(radix);
             result += Self::from(dig);
             i += 1;
@@ -575,6 +577,10 @@ mod tests {
             a,
             ConstUint::from_digits([12157665459056928801, 298023223876953125])
         );
+
+        assert!("".parse::<ConstUint<3>>().is_err());
+        assert!("-2".parse::<ConstUint<3>>().is_err());
+        assert!("36893488147419103232".parse::<ConstUint<1>>().is_err());
     }
 
     #[test]

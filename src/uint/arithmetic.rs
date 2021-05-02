@@ -265,6 +265,119 @@ impl<const DIGS: usize> ConstUint<DIGS> {
         *self = self.saturating_mul(rhs);
     }
 
+    // TODO checked div_rem
+    #[track_caller]
+    const fn div_rem_by_digit(self, rhs: ConstDigit) -> (Self, Self)
+    where
+        [(); DIGS - 1]: ,
+    {
+        // TODO should we check these two?
+        if rhs == 0 {
+            panic!("Division by zero")
+        }
+
+        if rhs.is_power_of_two() {
+            return (
+                self >> rhs.trailing_zeros(),
+                self & (Self::from(rhs) - Self::one()),
+            );
+        }
+
+        let mut carry = 0;
+        let mut quotient = Self::zero();
+
+        let mut i = DIGS;
+
+        while i > 0 {
+            let d = (carry << ConstDigit::BITS) | (self.digits[i - 1] as ConstDoubleDigit);
+            let (q, r) = (d / rhs as ConstDoubleDigit, d % rhs as ConstDoubleDigit);
+            carry = r;
+            quotient.digits[i - 1] = q as ConstDigit;
+            i -= 1;
+        }
+
+        (quotient, Self::from(carry as ConstDigit))
+    }
+
+    const fn overflowing_mul_by_digit(self, rhs: ConstDigit) -> (Self, bool) {
+        let mut result = Self::zero();
+        let mut carry = 0;
+
+        let mut i = 0;
+        while i < DIGS {
+            let n = self.digits[i] as ConstDoubleDigit * rhs as ConstDoubleDigit + carry;
+            let (new_carry, dig) = (n >> ConstDigit::BITS, n as ConstDigit);
+            result.digits[i] = dig;
+            carry = new_carry;
+            i += 1;
+        }
+
+        (result, carry != 0)
+    }
+
+    // TODO needs commenting
+    #[track_caller]
+    pub const fn div_rem(self, rhs: Self) -> (Self, Self)
+    where
+        [(); DIGS - 1]: ,
+        // lmao why does this need to exist?
+        [(); DIGS + 1 - DIGS]: ,
+    {
+        // should catch the case DIGS == 0 too
+        if rhs.is_zero() {
+            panic!("Division by zero");
+        }
+
+        // would it be worth it to first divide by 2^rhs.trainling_zero()?
+        if rhs.is_power_of_two() {
+            return (self >> rhs.trailing_zeros(), self & (rhs - Self::one()));
+        }
+
+        // simpler implementation when the divisor is small
+        if rhs.len_digits() == 1 {
+            return self.div_rem_by_digit(rhs.digits[0]);
+        }
+
+        let mut rem = self.cast_into::<{ DIGS + 1 }>();
+        let mut quotient = Self::zero();
+
+        let normalizing_shift = rhs.leading_zeros() % ConstDigit::BITS;
+        let divisor = (rhs << normalizing_shift).cast_into::<{ DIGS + 1 }>();
+        rem <<= normalizing_shift;
+
+        let divisor_high_digit = divisor.len_digits() - 1;
+        let mut rem_high_digit = rem.len_digits() - 1;
+
+        let d0 = divisor.digits[divisor_high_digit] as ConstDoubleDigit;
+        let mut a0 = 0;
+        let mut a1 = rem.digits[rem_high_digit];
+
+        while rem.cmp(&divisor).is_ge() {
+            let q = (((a0 as ConstDoubleDigit) << ConstDigit::BITS) | a1 as ConstDoubleDigit) / d0;
+
+            debug_assert!(q <= ConstDigit::MAX as ConstDoubleDigit);
+            let mut q = q as ConstDigit;
+            let shifted_d =
+                divisor << (ConstDigit::BITS * (rem_high_digit - divisor_high_digit) as u32);
+
+            // should not be able to overflow
+            let (mut to_subtract, _) = shifted_d.overflowing_mul_by_digit(q);
+            while rem.cmp(&to_subtract).is_le() {
+                to_subtract -= shifted_d;
+                q -= 1;
+            }
+
+            rem -= to_subtract;
+            quotient.digits[rem_high_digit - divisor_high_digit] = q;
+
+            a0 = rem.digits[rem_high_digit];
+            rem_high_digit -= 1;
+            a1 = rem.digits[rem_high_digit];
+        }
+
+        (quotient, rem.truncating_cast_into() >> normalizing_shift)
+    }
+
     const fn len_digits(self) -> usize {
         let mut i = DIGS;
 
@@ -464,6 +577,9 @@ mod tests {
 
     #[test]
     fn test_cmp() {
+        const B: Ordering =
+            ConstUint::<2>::from_digits([8126, 2365]).cmp(&ConstUint::from_digits([7126, 2367]));
+        assert_eq!(B, Ordering::Less);
         assert!(
             ConstUint::<3>::from_digits([1209, 71628126, 2365])
                 > ConstUint::<3>::from_digits([1209, 7126, 2365])
@@ -472,6 +588,90 @@ mod tests {
         assert!(ConstUint::<3>::from_digits([1, 2, 3]) >= ConstUint::<3>::from_digits([1, 2, 3]));
         assert!(
             ConstUint::<3>::from_digits([100, 200, 0]) < ConstUint::<3>::from_digits([1, 2, 3])
+        );
+    }
+
+    #[test]
+    fn test_small_over_small_div_rem() {
+        for n in 0..100u32 {
+            for d in 1..100u32 {
+                assert_eq!(
+                    ConstUint::<2>::from(n).div_rem(d.into()),
+                    ((n / d).into(), (n % d).into())
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_big_over_small_div_rem() {
+        const N: ConstUint<3> = ConstUint::from_digits([1283612836, 6125367215378125, 293798273]);
+
+        let rems = [
+            0u32, 0, 0, 1, 0, 4, 4, 0, 4, 4, 4, 8, 4, 4, 0, 4, 4, 3, 4, 4, 4, 7, 8, 12, 4, 24, 4,
+            4, 0, 21, 4, 29, 4, 19, 20, 14, 4, 27, 4, 4, 4, 1, 28, 25, 8, 4, 12, 38, 4, 21, 24, 37,
+            4, 38, 4, 19, 28, 4, 50, 37, 4, 12, 60, 49, 36, 4, 52, 50, 20, 58, 14, 68, 4, 20, 64,
+            49, 4, 63, 4, 4, 4, 4, 42, 49, 28, 54, 68, 79, 52, 67, 4, 56, 12, 91, 38, 4, 4, 84, 70,
+            85,
+        ];
+
+        for d in 1u32..100 {
+            let (q, r) = N.div_rem(d.into());
+            assert_eq!(r, rems[d as usize].into());
+            assert_eq!(q * d.into() + r.into(), N);
+        }
+    }
+
+    #[test]
+    fn test_big_over_big_div_rem() {
+        assert_eq!(
+            "82635623628732131233627832836872368763"
+                .parse::<ConstUint<3>>()
+                .unwrap()
+                .div_rem("65236755243254325432367453276".parse().unwrap()),
+            (
+                "1266703460".parse().unwrap(),
+                "42928735548481983780774833803".parse().unwrap()
+            )
+        );
+
+        assert_eq!(
+            "5190230237788064219266787467623481011551256006908578889728"
+                .parse::<ConstUint<3>>()
+                .unwrap()
+                .div_rem("333491267736991337526045940997437784064".parse().unwrap()),
+            (
+                "15563316763908047346".parse().unwrap(),
+                "179135314924432384181634569457142595584".parse().unwrap()
+            )
+        );
+
+        assert_eq!(
+            "4457359499115752675588217009834124327478257626921840934912"
+                .parse::<ConstUint<3>>()
+                .unwrap()
+                .div_rem(
+                    "4192781415444509085761665104815426471225207421239826579456"
+                        .parse()
+                        .unwrap()
+                ),
+            (
+                "1".parse().unwrap(),
+                "264578083671243589826551905018697856253050205682014355456"
+                    .parse()
+                    .unwrap()
+            )
+        );
+
+        assert_eq!(
+            "191847014859893931297599730783111875648663363048097972224"
+                .parse::<ConstUint<3>>()
+                .unwrap()
+                .div_rem("13572911432446715904".parse().unwrap()),
+            (
+                "14134551442019591775123243525602984366".parse().unwrap(),
+                "11112806629942415360".parse().unwrap()
+            )
         );
     }
 }
