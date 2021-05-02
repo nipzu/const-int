@@ -462,7 +462,10 @@ mod tests {
         );
 
         assert_eq!(std::format!("{}", ConstUint::<2>::zero()), "0");
-        assert_eq!(std::format!("{}", ConstUint::<3>::MAX), "6277101735386680763835789423207666416102355444464034512895");
+        assert_eq!(
+            std::format!("{}", ConstUint::<3>::MAX),
+            "6277101735386680763835789423207666416102355444464034512895"
+        );
     }
 
     #[test]

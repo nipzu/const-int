@@ -1,6 +1,6 @@
-use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
-use core::iter::{Sum, Product};
 use core::cmp::Ordering;
+use core::iter::{Product, Sum};
+use core::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 
 use super::{ConstDigit, ConstDoubleDigit, ConstUint};
 
@@ -427,28 +427,51 @@ mod tests {
 
     #[test]
     fn test_wrapping_mul() {
-        let a = ConstUint::<3>::from_digits([18446744073709551613, 18446744073709551615, 9223372036854775807]);
-        let b = ConstUint::<3>::from_str_radix("cccccccccccccccccccccccccccccccccccccccccccccccd", 16).unwrap();
-        let c = "627710173538668076383578942320766641610235544446403451289".parse::<ConstUint<3>>().unwrap();
+        let a = ConstUint::<3>::from_digits([
+            18446744073709551613,
+            18446744073709551615,
+            9223372036854775807,
+        ]);
+        let b =
+            ConstUint::<3>::from_str_radix("cccccccccccccccccccccccccccccccccccccccccccccccd", 16)
+                .unwrap();
+        let c = "627710173538668076383578942320766641610235544446403451289"
+            .parse::<ConstUint<3>>()
+            .unwrap();
         assert_eq!(a.wrapping_mul(b), c);
     }
 
     #[test]
     fn test_sum() {
-        assert_eq!((1u32..=100).map(|x| ConstUint::<3>::from(x)).sum::<ConstUint<3>>(), ConstUint::<3>::from(5050u32))
+        assert_eq!(
+            (1u32..=100)
+                .map(|x| ConstUint::<3>::from(x))
+                .sum::<ConstUint<3>>(),
+            ConstUint::<3>::from(5050u32)
+        )
     }
 
     #[test]
     fn test_product() {
-        let factorial = (1u32..=40).map(|x| ConstUint::<3>::from(x)).product::<ConstUint<3>>();
-        assert_eq!(Ok(factorial), "815915283247897734345611269596115894272000000000".parse());
+        let factorial = (1u32..=40)
+            .map(|x| ConstUint::<3>::from(x))
+            .product::<ConstUint<3>>();
+        assert_eq!(
+            Ok(factorial),
+            "815915283247897734345611269596115894272000000000".parse()
+        );
     }
 
     #[test]
     fn test_cmp() {
-        assert!(ConstUint::<3>::from_digits([1209, 71628126, 2365]) > ConstUint::<3>::from_digits([1209, 7126, 2365]));
+        assert!(
+            ConstUint::<3>::from_digits([1209, 71628126, 2365])
+                > ConstUint::<3>::from_digits([1209, 7126, 2365])
+        );
         assert!(ConstUint::<3>::from_digits([0, 1, 0]) < ConstUint::<3>::from_digits([1, 0, 1]));
         assert!(ConstUint::<3>::from_digits([1, 2, 3]) >= ConstUint::<3>::from_digits([1, 2, 3]));
-        assert!(ConstUint::<3>::from_digits([100, 200, 0]) < ConstUint::<3>::from_digits([1, 2, 3]));
+        assert!(
+            ConstUint::<3>::from_digits([100, 200, 0]) < ConstUint::<3>::from_digits([1, 2, 3])
+        );
     }
 }
