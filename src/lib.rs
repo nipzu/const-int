@@ -19,3 +19,6 @@ pub use uint::{ConstUint, U1024, U192, U2048, U256, U320, U384, U4096, U448, U51
 
 // TODO clippy::pedantic
 // also when to use inline(always)
+
+// TODO this seems pretty important for the crate
+// https://github.com/rust-lang/rust/issues/84846
