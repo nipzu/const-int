@@ -15,7 +15,10 @@
 compile_error!("Only targets with pointers of 32 or 64 bits are currently supported.");
 
 mod uint;
-pub use uint::{ConstUint, U1024, U192, U2048, U256, U320, U384, U4096, U448, U512, U8192};
+pub use uint::*;
+
+mod error;
+pub use error::*;
 
 // TODO clippy::pedantic
 // also when to use inline(always)

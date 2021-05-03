@@ -1,7 +1,8 @@
-use core::fmt;
 use core::str::FromStr;
+use core::{fmt, panic};
 
 use super::{ConstDigit, ConstUint};
+use crate::ParseConstIntError;
 
 impl<const DIGS: usize> ConstUint<DIGS> {
     // TODO don't use too much of the stack, make sure digit is 64 bits
@@ -128,24 +129,27 @@ impl<const DIGS: usize> ConstUint<DIGS> {
     }
 
     // TODO use core::num::ParseIntError or maybe own type tbh;
-    pub const fn from_str_radix(s: &str, radix: u32) -> Result<Self, ()>
+    pub const fn from_str_radix(s: &str, radix: u32) -> Result<Self, ParseConstIntError>
     where
         [(); DIGS - 1]: ,
     {
         if radix < 2 || radix > 36 {
-            return Err(());
+            panic!("radix not in range 2..=36");
         }
 
         let source = s.as_bytes();
         let mut i = 0;
 
         // TODO can't do source.first() == Some(&b'+') because of const stuff
-        if !source.is_empty() && source[0] == b'+' {
+        if source.is_empty() {
+            return Err(ParseConstIntError::empty());
+        } else if source[0] == b'+' {
             i += 1;
         }
 
+        // should only trigger when s == "+"
         if i >= source.len() {
-            return Err(());
+            return Err(ParseConstIntError::invalid_digit());
         }
 
         let mut result = Self::zero();
@@ -154,16 +158,16 @@ impl<const DIGS: usize> ConstUint<DIGS> {
                 b'0'..=b'9' => source[i] - b'0',
                 b'a'..=b'z' => source[i] - b'a' + 10,
                 b'A'..=b'Z' => source[i] - b'A' + 10,
-                _ => return Err(()),
+                _ => return Err(ParseConstIntError::invalid_digit()),
             };
             if dig as u32 >= radix {
-                return Err(());
+                return Err(ParseConstIntError::invalid_digit());
             }
             if result.overflowing_mul_assign_by_u32(radix) {
-                return Err(());
+                return Err(ParseConstIntError::overflow());
             };
             if result.overflowing_add_assign_u8(dig) {
-                return Err(());
+                return Err(ParseConstIntError::overflow());
             }
 
             i += 1;
@@ -237,8 +241,7 @@ impl<const DIGS: usize> const FromStr for ConstUint<DIGS>
 where
     [(); DIGS - 1]: ,
 {
-    // TODO errors
-    type Err = ();
+    type Err = ParseConstIntError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::from_str_radix(s, 10)
@@ -581,9 +584,15 @@ mod tests {
             ConstUint::from_digits([12157665459056928801, 298023223876953125])
         );
 
-        assert!("".parse::<ConstUint<3>>().is_err());
-        assert!("-2".parse::<ConstUint<3>>().is_err());
-        assert!("36893488147419103232".parse::<ConstUint<1>>().is_err());
+        assert_eq!("".parse::<ConstUint<3>>(), Err(ParseConstIntError::empty()));
+        assert_eq!(
+            "-2".parse::<ConstUint<3>>(),
+            Err(ParseConstIntError::invalid_digit())
+        );
+        assert_eq!(
+            "36893488147419103232".parse::<ConstUint<1>>(),
+            Err(ParseConstIntError::overflow())
+        );
     }
 
     #[test]
