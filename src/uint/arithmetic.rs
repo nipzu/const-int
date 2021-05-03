@@ -266,21 +266,20 @@ impl<const DIGS: usize> ConstUint<DIGS> {
     }
 
     // TODO checked div_rem
-    #[track_caller]
-    const fn div_rem_by_digit(self, rhs: ConstDigit) -> (Self, Self)
+    const fn checked_div_rem_by_digit(self, rhs: ConstDigit) -> Option<(Self, Self)>
     where
         [(); DIGS - 1]: ,
     {
         // TODO should we check these two?
         if rhs == 0 {
-            panic!("Division by zero")
+            return None;
         }
 
         if rhs.is_power_of_two() {
-            return (
+            return Some((
                 self >> rhs.trailing_zeros(),
                 self & (Self::from(rhs) - Self::one()),
-            );
+            ));
         }
 
         let mut carry = 0;
@@ -296,7 +295,7 @@ impl<const DIGS: usize> ConstUint<DIGS> {
             i -= 1;
         }
 
-        (quotient, Self::from(carry as ConstDigit))
+        Some((quotient, Self::from(carry as ConstDigit)))
     }
 
     const fn overflowing_mul_by_digit(self, rhs: ConstDigit) -> (Self, bool) {
@@ -315,9 +314,81 @@ impl<const DIGS: usize> ConstUint<DIGS> {
         (result, carry != 0)
     }
 
+    pub const fn overflowing_mul_by_u64(self, rhs: u64) -> (Self, bool) {
+        // TODO can we have diffirent digit sizes
+        self.overflowing_mul_by_digit(rhs)
+    }
+
+    pub const fn overflowing_mul_by_u32(self, rhs: u32) -> (Self, bool) {
+        self.overflowing_mul_by_digit(rhs as ConstDigit)
+    }
+
+    pub const fn overflowing_mul_by_u16(self, rhs: u16) -> (Self, bool) {
+        self.overflowing_mul_by_digit(rhs as ConstDigit)
+    }
+
+    pub const fn overflowing_mul_by_u8(self, rhs: u8) -> (Self, bool) {
+        self.overflowing_mul_by_digit(rhs as ConstDigit)
+    }
+
+    pub const fn overflowing_mul_assign_by_u64(&mut self, rhs: u64) -> bool {
+        let (result, did_overflow) = self.overflowing_mul_by_u64(rhs);
+        *self = result;
+        did_overflow
+    }
+
+    pub const fn overflowing_mul_assign_by_u32(&mut self, rhs: u32) -> bool {
+        let (result, did_overflow) = self.overflowing_mul_by_u32(rhs);
+        *self = result;
+        did_overflow
+    }
+
+    pub const fn overflowing_mul_assign_by_u16(&mut self, rhs: u16) -> bool {
+        let (result, did_overflow) = self.overflowing_mul_by_u16(rhs);
+        *self = result;
+        did_overflow
+    }
+
+    pub const fn overflowing_mul_assign_by_u8(&mut self, rhs: u8) -> bool {
+        let (result, did_overflow) = self.overflowing_mul_by_u8(rhs);
+        *self = result;
+        did_overflow
+    }
+
+    const fn overflowing_add_assign_digit(&mut self, rhs: ConstDigit) -> bool {
+        let mut carry = rhs as ConstDoubleDigit;
+
+        let mut i = 0;
+        while i < DIGS {
+            let n = self.digits[i] as ConstDoubleDigit + carry;
+            (carry, self.digits[i]) = ((n >> ConstDigit::BITS), n as ConstDigit);
+            if carry == 0 {
+                return false;
+            }
+            i += 1;
+        }
+
+        carry != 0
+    }
+
+    pub const fn overflowing_add_assign_u64(&mut self, rhs: u64) -> bool {
+        self.overflowing_add_assign_digit(rhs)
+    }
+
+    pub const fn overflowing_add_assign_u32(&mut self, rhs: u32) -> bool {
+        self.overflowing_add_assign_digit(rhs as ConstDigit)
+    }
+
+    pub const fn overflowing_add_assign_u16(&mut self, rhs: u16) -> bool {
+        self.overflowing_add_assign_digit(rhs as ConstDigit)
+    }
+
+    pub const fn overflowing_add_assign_u8(&mut self, rhs: u8) -> bool {
+        self.overflowing_add_assign_digit(rhs as ConstDigit)
+    }
+
     // TODO needs commenting
-    #[track_caller]
-    pub const fn div_rem(self, rhs: Self) -> (Self, Self)
+    pub const fn checked_div_rem(self, rhs: Self) -> Option<(Self, Self)>
     where
         [(); DIGS - 1]: ,
         // lmao why does this need to exist?
@@ -325,17 +396,17 @@ impl<const DIGS: usize> ConstUint<DIGS> {
     {
         // should catch the case DIGS == 0 too
         if rhs.is_zero() {
-            panic!("Division by zero");
+            return None;
         }
 
         // would it be worth it to first divide by 2^rhs.trainling_zero()?
         if rhs.is_power_of_two() {
-            return (self >> rhs.trailing_zeros(), self & (rhs - Self::one()));
+            return Some((self >> rhs.trailing_zeros(), self & (rhs - Self::one())));
         }
 
         // simpler implementation when the divisor is small
         if rhs.len_digits() == 1 {
-            return self.div_rem_by_digit(rhs.digits[0]);
+            return self.checked_div_rem_by_digit(rhs.digits[0]);
         }
 
         let mut rem = self.cast_into::<{ DIGS + 1 }>();
@@ -375,7 +446,7 @@ impl<const DIGS: usize> ConstUint<DIGS> {
             a1 = rem.digits[rem_high_digit];
         }
 
-        (quotient, rem.truncating_cast_into() >> normalizing_shift)
+        Some((quotient, rem.truncating_cast_into() >> normalizing_shift))
     }
 
     const fn len_digits(self) -> usize {
@@ -596,8 +667,8 @@ mod tests {
         for n in 0..100u32 {
             for d in 1..100u32 {
                 assert_eq!(
-                    ConstUint::<2>::from(n).div_rem(d.into()),
-                    ((n / d).into(), (n % d).into())
+                    ConstUint::<2>::from(n).checked_div_rem(d.into()),
+                    Some(((n / d).into(), (n % d).into()))
                 );
             }
         }
@@ -615,8 +686,10 @@ mod tests {
             85,
         ];
 
+        assert_eq!(N.checked_div_rem(0u32.into()), None);
+
         for d in 1u32..100 {
-            let (q, r) = N.div_rem(d.into());
+            let (q, r) = N.checked_div_rem(d.into()).unwrap();
             assert_eq!(r, rems[d as usize].into());
             assert_eq!(q * d.into() + r.into(), N);
         }
@@ -628,50 +701,50 @@ mod tests {
             "82635623628732131233627832836872368763"
                 .parse::<ConstUint<3>>()
                 .unwrap()
-                .div_rem("65236755243254325432367453276".parse().unwrap()),
-            (
+                .checked_div_rem("65236755243254325432367453276".parse().unwrap()),
+            Some((
                 "1266703460".parse().unwrap(),
                 "42928735548481983780774833803".parse().unwrap()
-            )
+            ))
         );
 
         assert_eq!(
             "5190230237788064219266787467623481011551256006908578889728"
                 .parse::<ConstUint<3>>()
                 .unwrap()
-                .div_rem("333491267736991337526045940997437784064".parse().unwrap()),
-            (
+                .checked_div_rem("333491267736991337526045940997437784064".parse().unwrap()),
+            Some((
                 "15563316763908047346".parse().unwrap(),
                 "179135314924432384181634569457142595584".parse().unwrap()
-            )
+            ))
         );
 
         assert_eq!(
             "4457359499115752675588217009834124327478257626921840934912"
                 .parse::<ConstUint<3>>()
                 .unwrap()
-                .div_rem(
+                .checked_div_rem(
                     "4192781415444509085761665104815426471225207421239826579456"
                         .parse()
                         .unwrap()
                 ),
-            (
+            Some((
                 "1".parse().unwrap(),
                 "264578083671243589826551905018697856253050205682014355456"
                     .parse()
                     .unwrap()
-            )
+            ))
         );
 
         assert_eq!(
             "191847014859893931297599730783111875648663363048097972224"
                 .parse::<ConstUint<3>>()
                 .unwrap()
-                .div_rem("13572911432446715904".parse().unwrap()),
-            (
+                .checked_div_rem("13572911432446715904".parse().unwrap()),
+            Some((
                 "14134551442019591775123243525602984366".parse().unwrap(),
                 "11112806629942415360".parse().unwrap()
-            )
+            ))
         );
     }
 }

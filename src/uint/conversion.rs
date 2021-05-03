@@ -161,8 +161,12 @@ impl<const DIGS: usize> ConstUint<DIGS> {
             }
 
             // TODO use digit methods
-            result *= Self::from(radix);
-            result += Self::from(dig);
+            if result.overflowing_mul_assign_by_u32(radix) {
+                return Err(());
+            };
+            if result.overflowing_add_assign_u8(dig) {
+                return Err(());
+            }
             i += 1;
         }
 
