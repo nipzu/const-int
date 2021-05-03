@@ -1,3 +1,6 @@
+//! # A crate for dealing with big integers both at compile time and runtime.
+//! 🚧 Currently under construction 🚧
+
 // TODO remove this
 #![allow(incomplete_features)]
 #![feature(const_panic)]

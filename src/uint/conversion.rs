@@ -127,7 +127,7 @@ impl<const DIGS: usize> ConstUint<DIGS> {
         }
     }
 
-    // TODO use core::num::ParseIntError;
+    // TODO use core::num::ParseIntError or maybe own type tbh;
     pub const fn from_str_radix(s: &str, radix: u32) -> Result<Self, ()>
     where
         [(); DIGS - 1]: ,
@@ -159,13 +159,13 @@ impl<const DIGS: usize> ConstUint<DIGS> {
             if dig as u32 >= radix {
                 return Err(());
             }
-
             if result.overflowing_mul_assign_by_u32(radix) {
                 return Err(());
             };
             if result.overflowing_add_assign_u8(dig) {
                 return Err(());
             }
+
             i += 1;
         }
 
