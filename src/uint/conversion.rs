@@ -160,7 +160,6 @@ impl<const DIGS: usize> ConstUint<DIGS> {
                 return Err(());
             }
 
-            // TODO use digit methods
             if result.overflowing_mul_assign_by_u32(radix) {
                 return Err(());
             };
