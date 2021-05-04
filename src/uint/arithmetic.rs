@@ -424,6 +424,8 @@ impl<const DIGS: usize> ConstUint<DIGS> {
         let mut a1 = rem.digits[rem_high_digit];
 
         while rem.cmp(&divisor).is_ge() {
+            debug_assert!((a0 as ConstDoubleDigit) < d0);
+
             let q = (((a0 as ConstDoubleDigit) << ConstDigit::BITS) | a1 as ConstDoubleDigit) / d0;
 
             debug_assert!(q <= ConstDigit::MAX as ConstDoubleDigit);
@@ -744,6 +746,17 @@ mod tests {
             Some((
                 "14134551442019591775123243525602984366".parse().unwrap(),
                 "11112806629942415360".parse().unwrap()
+            ))
+        );
+
+        assert_eq!(
+            "193908458518944499967006467762324934313544"
+                .parse::<ConstUint<3>>()
+                .unwrap()
+                .checked_div_rem("2354763254763254762354".parse().unwrap()),
+            Some((
+                "82347326478236487236".parse().unwrap(),
+                "0".parse().unwrap()
             ))
         );
     }
