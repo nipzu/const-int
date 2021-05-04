@@ -424,9 +424,13 @@ impl<const DIGS: usize> ConstUint<DIGS> {
         let mut a1 = rem.digits[rem_high_digit];
 
         while rem.cmp(&divisor).is_ge() {
-            debug_assert!((a0 as ConstDoubleDigit) < d0);
+            debug_assert!((a0 as ConstDoubleDigit) <= d0);
 
-            let q = (((a0 as ConstDoubleDigit) << ConstDigit::BITS) | a1 as ConstDoubleDigit) / d0;
+            let mut q = (((a0 as ConstDoubleDigit) << ConstDigit::BITS) | a1 as ConstDoubleDigit) / d0;
+
+            if q as ConstDoubleDigit > ConstDigit::MAX as ConstDoubleDigit {
+                q = ConstDigit::MAX as ConstDoubleDigit;
+            }
 
             debug_assert!(q <= ConstDigit::MAX as ConstDoubleDigit);
             let mut q = q as ConstDigit;
@@ -435,7 +439,7 @@ impl<const DIGS: usize> ConstUint<DIGS> {
 
             // should not be able to overflow
             let (mut to_subtract, _) = shifted_d.overflowing_mul_by_digit(q);
-            while rem.cmp(&to_subtract).is_le() {
+            while rem.cmp(&to_subtract).is_lt() {
                 to_subtract -= shifted_d;
                 q -= 1;
             }
